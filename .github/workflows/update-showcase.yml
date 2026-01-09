@@ -28,6 +28,9 @@ jobs:
             const templateOwner = context.repo.owner;
             const templateRepo = context.repo.repo;
 
+            // Helper function to delay execution
+            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
             // Function to search for repos using this template
             async function findTemplateRepos() {
               const repos = [];
@@ -65,8 +68,15 @@ jobs:
                         });
                       }
                     }
+                    // Add delay between search queries to avoid rate limiting
+                    await delay(1000);
                   } catch (e) {
                     console.log(`Search query failed: ${query}`, e.message);
+                    // If rate limited, wait longer before next request
+                    if (e.status === 403) {
+                      console.log('Rate limited, waiting 60 seconds...');
+                      await delay(60000);
+                    }
                   }
                 }
 
@@ -102,6 +112,23 @@ jobs:
               return repos;
             }
 
+            // Function to escape markdown special characters to prevent XSS
+            function escapeMarkdown(text) {
+              if (!text) return '';
+              return text
+                .replace(/\\/g, '\\\\')
+                .replace(/\[/g, '\\[')
+                .replace(/\]/g, '\\]')
+                .replace(/\(/g, '\\(')
+                .replace(/\)/g, '\\)')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\|/g, '\\|')
+                .replace(/`/g, '\\`')
+                .replace(/\*/g, '\\*')
+                .replace(/_/g, '\\_');
+            }
+
             // Function to generate markdown for a category
             function generateMarkdown(repos, minStars, maxStars = Infinity) {
               const filtered = repos.filter(r => r.stars >= minStars && r.stars < maxStars);
@@ -112,7 +139,8 @@ jobs:
 
               let md = '';
               for (const repo of filtered) {
-                md += `- [${repo.full_name}](${repo.html_url}) - ⭐ ${repo.stars.toLocaleString()} - ${repo.description}\n`;
+                const safeDescription = escapeMarkdown(repo.description);
+                md += `- [${repo.full_name}](${repo.html_url}) - ⭐ ${repo.stars.toLocaleString()} - ${safeDescription}\n`;
               }
               return md;
             }
