@@ -185,6 +185,25 @@ npx serve .
 
 Visit `http://localhost:8000` in your browser.
 
+## 🔒 Security Notes
+
+### Puter.js CDN
+
+This template loads Puter.js from the official CDN (`https://js.puter.com/v2/`). The CDN is dynamically updated by the Puter team, which means:
+
+- ✅ You always get the latest features and bug fixes
+- ✅ Security patches are applied automatically
+- ⚠️ Subresource Integrity (SRI) hashes cannot be used (they would break on updates)
+
+This is the recommended approach by the Puter.js team. The CDN is hosted and maintained by [Puter.com](https://puter.com).
+
+### Best Practices
+
+- Review the [SECURITY.md](SECURITY.md) file for security guidelines
+- Always validate user input in your application
+- Be mindful of what data you store in the cloud
+- Keep your application code up to date
+
 ## 🎨 Customization Ideas
 
 - **Productivity Apps**: Todo lists, note-taking, project management

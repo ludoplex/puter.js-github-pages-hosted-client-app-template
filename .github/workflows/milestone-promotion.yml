@@ -68,6 +68,7 @@ jobs:
             }
             
             // Create celebration issue
+            const templateUrl = 'https://github.com/ludoplex/puter.js-github-pages-hosted-client-app-template';
             const body = `# 🎉 ${milestone}+ Stars Milestone Reached!
             
             Thank you to our amazing community for helping us reach **${stars}** stars! ⭐
@@ -79,7 +80,7 @@ jobs:
             
             ## What This Means
             
-            This project is built using the [Puter.js GitHub Pages Template](https://github.com/ludoplex/puter.js-github-pages-hosted-client-app-template), which enables serverless, cloud-powered applications with zero backend infrastructure.
+            This project is built using the [Puter.js GitHub Pages Template](${templateUrl}), which enables serverless, cloud-powered applications with zero backend infrastructure.
             
             ## Features Powered by Puter.js
             - ☁️ Cloud storage and file system
@@ -92,14 +93,14 @@ jobs:
             ## Get Started
             
             Want to build your own serverless app? Use this template:
-            1. Visit [puter.js-github-pages-hosted-client-app-template](https://github.com/ludoplex/puter.js-github-pages-hosted-client-app-template)
+            1. Visit [puter.js-github-pages-hosted-client-app-template](${templateUrl})
             2. Click "Use this template"
             3. Start building with Puter.js!
             
             ## Share the Love
             
             If you find this project useful, please consider:
-            - ⭐ Starring the [template repository](https://github.com/ludoplex/puter.js-github-pages-hosted-client-app-template)
+            - ⭐ Starring the [template repository](${templateUrl})
             - 🔄 Sharing with others who might benefit
             - 💬 Contributing to the community
             
