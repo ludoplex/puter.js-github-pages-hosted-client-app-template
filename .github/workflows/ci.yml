@@ -1,0 +1,51 @@
+name: CI - Validate HTML
+
+on:
+  push:
+    branches:
+      - main
+      - 'copilot/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate HTML
+        uses: Cyb3r-Jak3/html5validator-action@v7.2.0
+        with:
+          root: .
+          css: false
+          format: text
+
+      - name: Check for index.html
+        run: |
+          if [ ! -f "index.html" ]; then
+            echo "Error: index.html not found!"
+            exit 1
+          fi
+          echo "✓ index.html exists"
+
+      - name: Check Puter.js script reference
+        run: |
+          if ! grep -q "js.puter.com" index.html; then
+            echo "Warning: Puter.js script not found in index.html"
+            exit 1
+          fi
+          echo "✓ Puter.js script reference found"
+
+      - name: Validate README
+        run: |
+          if [ ! -f "README.md" ]; then
+            echo "Error: README.md not found!"
+            exit 1
+          fi
+          echo "✓ README.md exists"

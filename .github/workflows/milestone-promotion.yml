@@ -1,0 +1,138 @@
+name: Star Milestone Promotion
+
+on:
+  watch:
+    types: [started]
+  schedule:
+    # Check daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-stars:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get repository star count
+        id: stars
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: repo } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const stars = repo.stargazers_count;
+            console.log(`Current stars: ${stars}`);
+            
+            // Define milestones
+            const milestones = [100, 1000, 10000, 100000];
+            let reachedMilestone = null;
+            
+            for (const milestone of milestones) {
+              if (stars >= milestone) {
+                reachedMilestone = milestone;
+              }
+            }
+            
+            core.setOutput('stars', stars);
+            core.setOutput('milestone', reachedMilestone || 0);
+            
+            return { stars, milestone: reachedMilestone };
+
+      - name: Create milestone celebration issue
+        if: steps.stars.outputs.milestone != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const stars = '${{ steps.stars.outputs.stars }}';
+            const milestone = '${{ steps.stars.outputs.milestone }}';
+            
+            // Check if we've already created an issue for this milestone
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: `milestone-${milestone}`
+            });
+            
+            if (issues.data.length > 0) {
+              console.log(`Milestone ${milestone} already celebrated`);
+              return;
+            }
+            
+            // Create celebration issue
+            const templateUrl = 'https://github.com/ludoplex/puter.js-github-pages-hosted-client-app-template';
+            const body = `# 🎉 ${milestone}+ Stars Milestone Reached!
+            
+            Thank you to our amazing community for helping us reach **${stars}** stars! ⭐
+            
+            ## Project Stats
+            - **Stars**: ${stars}
+            - **Milestone**: ${milestone}+
+            - **Template**: Puter.js GitHub Pages Template
+            
+            ## What This Means
+            
+            This project is built using the [Puter.js GitHub Pages Template](${templateUrl}), which enables serverless, cloud-powered applications with zero backend infrastructure.
+            
+            ## Features Powered by Puter.js
+            - ☁️ Cloud storage and file system
+            - 🤖 Built-in AI capabilities
+            - 🔐 Authentication without backend
+            - 💾 NoSQL database (key-value store)
+            - 🌐 Full networking support
+            - 📦 Completely serverless
+            
+            ## Get Started
+            
+            Want to build your own serverless app? Use this template:
+            1. Visit [puter.js-github-pages-hosted-client-app-template](${templateUrl})
+            2. Click "Use this template"
+            3. Start building with Puter.js!
+            
+            ## Share the Love
+            
+            If you find this project useful, please consider:
+            - ⭐ Starring the [template repository](${templateUrl})
+            - 🔄 Sharing with others who might benefit
+            - 💬 Contributing to the community
+            
+            Thank you for being part of our journey! 🚀`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🎉 ${milestone}+ Stars Milestone Reached!`,
+              body: body,
+              labels: [`milestone-${milestone}`, 'celebration', 'community']
+            });
+            
+            console.log(`Created milestone celebration issue for ${milestone} stars`);
+
+      - name: Update README badge
+        if: steps.stars.outputs.milestone != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const milestone = '${{ steps.stars.outputs.milestone }}';
+            
+            // Add a congratulatory comment (this could be expanded to update README)
+            console.log(`🎉 Congratulations on reaching ${milestone}+ stars!`);
+            console.log('Consider updating your README with milestone badges!');
+
+      - name: Promote template repository
+        if: steps.stars.outputs.milestone != '0'
+        run: |
+          echo "🌟 Milestone reached! Promoting puter.js-github-pages-hosted-client-app-template"
+          echo "Stars: ${{ steps.stars.outputs.stars }}"
+          echo "Milestone: ${{ steps.stars.outputs.milestone }}"
+          echo ""
+          echo "This project was built with:"
+          echo "https://github.com/ludoplex/puter.js-github-pages-hosted-client-app-template"
