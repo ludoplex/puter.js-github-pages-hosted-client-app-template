@@ -1,0 +1,223 @@
+name: Update Showcase
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  update-showcase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update README with starred repos
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Template identifier to search for repos using this template
+            const templateIdentifier = 'puter.js-github-pages-hosted-client-app-template';
+            const templateOwner = context.repo.owner;
+            const templateRepo = context.repo.repo;
+
+            // Helper function to delay execution
+            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            // Function to search for repos using this template
+            async function findTemplateRepos() {
+              const repos = [];
+              
+              try {
+                // Search for repos that mention this template (forks or repos created from template)
+                // We search for the template name in the repo description or readme
+                const searchQueries = [
+                  `"${templateIdentifier}" in:readme fork:true`,
+                  `"${templateIdentifier}" in:description fork:true`,
+                  `"created from ${templateIdentifier}" in:readme`,
+                  `template:${templateOwner}/${templateRepo}`
+                ];
+
+                for (const query of searchQueries) {
+                  try {
+                    const result = await github.rest.search.repos({
+                      q: query,
+                      sort: 'stars',
+                      order: 'desc',
+                      per_page: 100
+                    });
+
+                    for (const repo of result.data.items) {
+                      // Skip the template repo itself
+                      if (repo.full_name === `${templateOwner}/${templateRepo}`) continue;
+                      
+                      // Avoid duplicates
+                      if (!repos.find(r => r.full_name === repo.full_name)) {
+                        repos.push({
+                          full_name: repo.full_name,
+                          html_url: repo.html_url,
+                          description: repo.description || 'No description',
+                          stars: repo.stargazers_count
+                        });
+                      }
+                    }
+                    // Add delay between search queries to avoid rate limiting
+                    await delay(1000);
+                  } catch (e) {
+                    console.log(`Search query failed: ${query}`, e.message);
+                    // If rate limited, wait longer before next request
+                    if (e.status === 403) {
+                      console.log('Rate limited, waiting 60 seconds...');
+                      await delay(60000);
+                    }
+                  }
+                }
+
+                // Also check forks of this template repo
+                try {
+                  const forks = await github.rest.repos.listForks({
+                    owner: templateOwner,
+                    repo: templateRepo,
+                    sort: 'stargazers',
+                    per_page: 100
+                  });
+
+                  for (const repo of forks.data) {
+                    if (!repos.find(r => r.full_name === repo.full_name)) {
+                      repos.push({
+                        full_name: repo.full_name,
+                        html_url: repo.html_url,
+                        description: repo.description || 'No description',
+                        stars: repo.stargazers_count
+                      });
+                    }
+                  }
+                } catch (e) {
+                  console.log('Failed to list forks:', e.message);
+                }
+
+              } catch (e) {
+                console.log('Error searching for repos:', e.message);
+              }
+
+              // Sort by stars descending
+              repos.sort((a, b) => b.stars - a.stars);
+              return repos;
+            }
+
+            // Function to escape markdown special characters to prevent XSS
+            function escapeMarkdown(text) {
+              if (!text) return '';
+              return text
+                .replace(/\\/g, '\\\\')
+                .replace(/\[/g, '\\[')
+                .replace(/\]/g, '\\]')
+                .replace(/\(/g, '\\(')
+                .replace(/\)/g, '\\)')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\|/g, '\\|')
+                .replace(/`/g, '\\`')
+                .replace(/\*/g, '\\*')
+                .replace(/_/g, '\\_');
+            }
+
+            // Function to generate markdown for a category
+            function generateMarkdown(repos, minStars, maxStars = Infinity) {
+              const filtered = repos.filter(r => r.stars >= minStars && r.stars < maxStars);
+              
+              if (filtered.length === 0) {
+                return '*No projects yet. Be the first to reach this milestone!*\n';
+              }
+
+              let md = '';
+              for (const repo of filtered) {
+                const safeDescription = escapeMarkdown(repo.description);
+                md += `- [${repo.full_name}](${repo.html_url}) - ⭐ ${repo.stars.toLocaleString()} - ${safeDescription}\n`;
+              }
+              return md;
+            }
+
+            // Function to update README section
+            function updateSection(content, startMarker, endMarker, newContent) {
+              const startIdx = content.indexOf(startMarker);
+              const endIdx = content.indexOf(endMarker);
+              
+              if (startIdx === -1 || endIdx === -1) {
+                console.log(`Markers not found: ${startMarker}`);
+                return content;
+              }
+
+              const before = content.substring(0, startIdx + startMarker.length);
+              const after = content.substring(endIdx);
+              
+              // Extract header from existing content
+              const existingSection = content.substring(startIdx + startMarker.length, endIdx);
+              const headerMatch = existingSection.match(/\n(###[^\n]+)\n/);
+              const header = headerMatch ? headerMatch[1] : '';
+              
+              return before + '\n' + header + '\n\n' + newContent + '\n' + after;
+            }
+
+            // Main execution
+            console.log('Searching for repos using this template...');
+            const repos = await findTemplateRepos();
+            console.log(`Found ${repos.length} repos`);
+
+            // Read current README
+            const readmePath = 'README.md';
+            let readme = fs.readFileSync(readmePath, 'utf8');
+
+            // Update each section
+            readme = updateSection(
+              readme,
+              '<!-- STARS_100000_START -->',
+              '<!-- STARS_100000_END -->',
+              generateMarkdown(repos, 100000)
+            );
+
+            readme = updateSection(
+              readme,
+              '<!-- STARS_10000_START -->',
+              '<!-- STARS_10000_END -->',
+              generateMarkdown(repos, 10000, 100000)
+            );
+
+            readme = updateSection(
+              readme,
+              '<!-- STARS_1000_START -->',
+              '<!-- STARS_1000_END -->',
+              generateMarkdown(repos, 1000, 10000)
+            );
+
+            readme = updateSection(
+              readme,
+              '<!-- STARS_100_START -->',
+              '<!-- STARS_100_END -->',
+              generateMarkdown(repos, 100, 1000)
+            );
+
+            // Write updated README
+            fs.writeFileSync(readmePath, readme);
+            console.log('README updated successfully');
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet README.md || echo "changes=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "docs: Update showcase with starred repos"
+          git push
